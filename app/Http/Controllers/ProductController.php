@@ -13,15 +13,25 @@ class ProductController extends Controller
     /**
      * Menampilkan produk milik seller yang sedang login
      */
-    public function index()
+    public function index(Request $request) // ✅ Tambahkan Request $request
     {
         $products = Product::where('seller_id', auth()->id())
             ->with('category')
-            ->withSum('orderItems as orders_count', 'quantity') // ✅ Pakai alias
+            ->withSum('orderItems as orders_count', 'quantity')
             ->withCount('reviews')
             ->withAvg('reviews', 'rating')
-            ->latest()
-            ->paginate(10);
+            ->latest();
+
+        // ✅ Tambahkan logika pencarian
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $products->where(function($query) use ($search) {
+                $query->where('name', 'like', '%' . $search . '%')
+                      ->orWhere('description', 'like', '%' . $search . '%');
+            });
+        }
+
+        $products = $products->paginate(10);
 
         return view('seller.products.index', compact('products'));
     }
@@ -56,7 +66,7 @@ class ProductController extends Controller
             'description' => 'required',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // ✅ 5MB (5120KB)
         ]);
 
         $imagePath = null;
@@ -81,26 +91,17 @@ class ProductController extends Controller
 
     /**
      * Menampilkan detail produk (untuk halaman publik)
-     * ✅ FINAL FIX - Pakai alias 'as orders_count' biar konsisten
      */
     public function show($slug)
     {
         $product = Product::with(['seller', 'category', 'reviews.user'])
-            // 1. Hitung Rata-rata Rating -> Hasilnya: reviews_avg_rating
             ->withAvg('reviews', 'rating')
-            
-            // 2. Hitung Jumlah Review -> Hasilnya: reviews_count
             ->withCount('reviews')
-            
-            // 3. Hitung Jumlah Barang Terjual (Quantity)
-            // ✅ Trik: Kita namakan hasilnya 'orders_count' biar view gak bingung
             ->withSum('orderItems as orders_count', 'quantity')
-            
             ->where('slug', $slug)
-            ->where('is_active', true) // Pastikan hanya produk aktif
+            ->where('is_active', true)
             ->firstOrFail();
 
-        // Guard: Pastikan nilainya 0 kalau null (biar gak error di view)
         $product->reviews_avg_rating = $product->reviews_avg_rating ?? 0;
         $product->reviews_count = $product->reviews_count ?? 0;
         $product->orders_count = $product->orders_count ?? 0;
@@ -136,7 +137,7 @@ class ProductController extends Controller
             'description' => 'required',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120', // ✅ DIPERBAIKI: 'image' bukan 'images'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120', // ✅ 5MB
         ]);
 
         $updateData = [
