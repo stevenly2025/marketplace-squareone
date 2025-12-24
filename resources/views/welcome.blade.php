@@ -25,6 +25,60 @@
     <style>
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Style untuk tombol slider */
+        .slider-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(60, 65, 66, 0.7);
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 20;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        .slider-btn:hover {
+            background: rgba(60, 65, 66, 0.95);
+            transform: translateY(-50%) scale(1.1);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+        .slider-btn-prev {
+            left: 15px;
+        }
+        .slider-btn-next {
+            right: 15px;
+        }
+        
+        /* Indicator dots */
+        .slider-indicators {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 20;
+        }
+        .slider-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .slider-dot.active {
+            background: white;
+            width: 30px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
@@ -110,7 +164,7 @@
         
         {{-- BANNER SLIDER --}}
         <div class="rounded-xl overflow-hidden shadow-md mb-8 relative group bg-white border border-gray-100">
-            <div class="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+            <div class="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide" id="banner-slider">
                 
                 @forelse($banners as $banner)
                     <div class="snap-center flex-shrink-0 w-full relative aspect-[3/1] md:aspect-[3.5/1]">
@@ -129,6 +183,17 @@
                 @endforelse
 
             </div>
+            
+            {{-- TOMBOL PREV & NEXT --}}
+            <div class="slider-btn slider-btn-prev" id="slider-prev">
+                <i class="fas fa-chevron-left"></i>
+            </div>
+            <div class="slider-btn slider-btn-next" id="slider-next">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+            
+            {{-- INDICATOR DOTS --}}
+            <div class="slider-indicators" id="slider-indicators"></div>
         </div>
 
         {{-- KATEGORI PILIHAN --}}
@@ -320,5 +385,132 @@
             <i class="fas fa-user text-lg"></i><span class="text-[10px] mt-1">Akun</span>
         </a>
     </nav>
+
+    {{-- SCRIPT BANNER SLIDER OTOMATIS DENGAN TOMBOL & INDICATOR --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const slider = document.getElementById('banner-slider');
+            const prevBtn = document.getElementById('slider-prev');
+            const nextBtn = document.getElementById('slider-next');
+            const indicatorsContainer = document.getElementById('slider-indicators');
+            
+            if (!slider) return;
+            
+            const slides = slider.children;
+            const totalSlides = slides.length;
+            
+            if (totalSlides <= 1) {
+                // Sembunyikan tombol dan indicator jika hanya 1 banner
+                if (prevBtn) prevBtn.style.display = 'none';
+                if (nextBtn) nextBtn.style.display = 'none';
+                if (indicatorsContainer) indicatorsContainer.style.display = 'none';
+                return;
+            }
+            
+            let currentIndex = 0;
+            const intervalTime = 5000;
+            let slideInterval;
+            
+            // Buat indicator dots
+            function createIndicators() {
+                indicatorsContainer.innerHTML = '';
+                for (let i = 0; i < totalSlides; i++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'slider-dot';
+                    if (i === 0) dot.classList.add('active');
+                    dot.addEventListener('click', () => goToSlide(i));
+                    indicatorsContainer.appendChild(dot);
+                }
+            }
+            
+            // Update indicator dots
+            function updateIndicators() {
+                const dots = indicatorsContainer.querySelectorAll('.slider-dot');
+                dots.forEach((dot, index) => {
+                    if (index === currentIndex) {
+                        dot.classList.add('active');
+                    } else {
+                        dot.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Fungsi untuk pindah ke slide tertentu
+            function goToSlide(index) {
+                currentIndex = index;
+                const slideWidth = slides[0].offsetWidth;
+                slider.scrollTo({
+                    left: slideWidth * currentIndex,
+                    behavior: 'smooth'
+                });
+                updateIndicators();
+            }
+            
+            // Fungsi untuk pindah ke slide berikutnya
+            function nextSlide() {
+                currentIndex = (currentIndex + 1) % totalSlides;
+                goToSlide(currentIndex);
+            }
+            
+            // Fungsi untuk pindah ke slide sebelumnya
+            function prevSlide() {
+                currentIndex = (currentIndex - 1 + totalSlides) % totalSlides;
+                goToSlide(currentIndex);
+            }
+            
+            // Start autoplay
+            function startAutoplay() {
+                slideInterval = setInterval(nextSlide, intervalTime);
+            }
+            
+            function stopAutoplay() {
+                if (slideInterval) {
+                    clearInterval(slideInterval);
+                }
+            }
+            
+            // Initialize
+            createIndicators();
+            startAutoplay();
+            
+            // Event listeners untuk tombol
+            if (prevBtn) {
+                prevBtn.addEventListener('click', () => {
+                    stopAutoplay();
+                    prevSlide();
+                    startAutoplay();
+                });
+            }
+            
+            if (nextBtn) {
+                nextBtn.addEventListener('click', () => {
+                    stopAutoplay();
+                    nextSlide();
+                    startAutoplay();
+                });
+            }
+            
+            // Pause autoplay saat hover
+            slider.addEventListener('mouseenter', stopAutoplay);
+            slider.addEventListener('mouseleave', startAutoplay);
+            
+            // Pause autoplay saat touch
+            slider.addEventListener('touchstart', stopAutoplay);
+            slider.addEventListener('touchend', () => {
+                setTimeout(startAutoplay, 1000);
+            });
+            
+            // Update currentIndex saat user scroll manual
+            slider.addEventListener('scroll', function() {
+                const slideWidth = slides[0].offsetWidth;
+                const scrolled = slider.scrollLeft;
+                const newIndex = Math.round(scrolled / slideWidth);
+                if (newIndex !== currentIndex) {
+                    currentIndex = newIndex;
+                    updateIndicators();
+                }
+            }, { passive: true });
+        });
+    </script>
 </body>
 </html>
