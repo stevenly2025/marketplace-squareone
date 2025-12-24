@@ -40,8 +40,7 @@
                     <div class="bg-slate-50/50 p-6 rounded-3xl border border-slate-50">
                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Wilayah / Kota</p>
                         <p class="text-sm font-black text-slate-800 uppercase tracking-tight">
-                            {{ auth()->user()->city }} 
-                            @if(isset($buyerCityData)) <span class="text-slate-400 font-bold italic ml-1">({{ $buyerCityData->island }})</span> @endif
+                            {{ auth()->user()->city }}
                         </p>
                         
                         <div class="h-[1px] bg-slate-100 my-4"></div>
@@ -79,8 +78,13 @@
                                     <p class="text-[10px] font-bold text-slate-400 uppercase">Rp {{ number_format($item->product->price, 0, ',', '.') }} / pcs</p>
 
                                     {{-- ✅ LOGIC UPDATE QUANTITY DIPERBAIKI --}}
-                                    {{-- Kita cek apakah item ini punya ID dari database Carts --}}
-                                    @if(isset($item->id) && $item->id > 0)
+                                    @php
+                                        $itemId = (string) $item->id;
+                                        $isDirectItem = strpos($itemId, 'direct_') === 0;
+                                    @endphp
+
+                                    @if(!$isDirectItem && is_numeric($item->id))
+                                        {{-- Mode Cart: Bisa diubah qty-nya --}}
                                         <form action="{{ route('buyer.cart.update', $item->id) }}" method="POST" class="flex items-center gap-3 mt-3">
                                             @csrf @method('PATCH')
                                             <span class="text-[9px] font-black text-slate-400 uppercase">Jumlah:</span>
@@ -91,7 +95,7 @@
                                             <span class="text-[9px] font-bold text-slate-300 italic uppercase">Stok: {{ $item->product->stock }}</span>
                                         </form>
                                     @else
-                                        {{-- Khusus mode "Beli Sekarang", input dikunci biar gak 404/Error --}}
+                                        {{-- Mode Direct: Qty dikunci --}}
                                         <div class="flex items-center gap-3 mt-3">
                                             <span class="text-[9px] font-black text-slate-400 uppercase">Jumlah:</span>
                                             <div class="px-3 py-1 bg-slate-100 rounded-lg text-xs font-black text-[#3C4142] italic">
@@ -108,7 +112,7 @@
                                         Rp {{ number_format($item->product->price * $item->quantity, 0, ',', '.') }}
                                     </div>
                                     
-                                    @if(isset($item->id) && $item->id > 0)
+                                    @if(!$isDirectItem && is_numeric($item->id))
                                         <form action="{{ route('buyer.cart.destroy', $item->id) }}" method="POST">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="text-[9px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest transition" onclick="return confirm('Hapus barang?')">
@@ -141,6 +145,13 @@
                             <span>Logistik ({{ $shippingType ?? 'Reguler' }})</span>
                             <span class="font-black text-slate-800">+Rp {{ number_format($shippingCost ?? 0, 0, ',', '.') }}</span>
                         </div>
+
+                        @if(isset($discount) && $discount > 0)
+                            <div class="flex justify-between font-bold text-green-600 uppercase">
+                                <span>🎉 Diskon Promo</span>
+                                <span class="font-black">-Rp {{ number_format($discount, 0, ',', '.') }}</span>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="h-[1px] bg-slate-50"></div>
@@ -149,6 +160,15 @@
                         <span>Grand Total</span>
                         <span>Rp {{ number_format($totalAmount, 0, ',', '.') }}</span>
                     </div>
+
+                    {{-- Promo Message --}}
+                    @if(isset($promoMessage) && $promoMessage)
+                        <div class="p-4 bg-green-50 rounded-2xl border border-green-200">
+                            <p class="text-[10px] font-black text-green-700 uppercase tracking-wider text-center">
+                                {{ $promoMessage }}
+                            </p>
+                        </div>
+                    @endif
 
                     {{-- QRIS Preview --}}
                     <div class="bg-slate-50/80 p-6 rounded-3xl border border-slate-100 text-center relative group cursor-pointer" onclick="openQRModal()">
@@ -163,13 +183,27 @@
                         <p class="text-[9px] text-slate-400 mt-4 leading-tight italic uppercase font-medium">Klik untuk memperbesar</p>
                     </div>
 
-                    {{-- FORM PROCESS --}}
+                    {{-- ✅ FORM PROCESS: DETEKSI MODE DIRECT/CART --}}
                     <form action="{{ route('buyer.checkout.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                         @csrf
                         <input type="hidden" name="seller_id" value="{{ $seller->id }}">
-                        @foreach($cartItems as $item)
-                            <input type="hidden" name="cart_ids[]" value="{{ $item->id ?? '' }}">
-                        @endforeach
+                        
+                        {{-- ✅ DETEKSI MODE: Gunakan flag dari controller --}}
+                        @php
+                            $isDirectMode = isset($is_direct_checkout) && $is_direct_checkout === true;
+                            $firstItem = $cartItems->first();
+                        @endphp
+
+                        @if($isDirectMode)
+                            {{-- Mode: BELI SEKARANG --}}
+                            <input type="hidden" name="direct_product_id" value="{{ $firstItem->product_id }}">
+                            <input type="hidden" name="direct_quantity" value="{{ $firstItem->quantity }}">
+                        @else
+                            {{-- Mode: CHECKOUT DARI KERANJANG --}}
+                            @foreach($cartItems as $item)
+                                <input type="hidden" name="cart_ids[]" value="{{ $item->id }}">
+                            @endforeach
+                        @endif
 
                         <div class="space-y-3">
                             <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -208,6 +242,10 @@
             <div class="bg-slate-50 p-10 rounded-[2.5rem] inline-block border border-slate-100">
                 @if($seller->vendor_payment_info)
                     <img src="{{ asset('storage/' . $seller->vendor_payment_info) }}" class="max-w-full max-h-80 mx-auto object-contain">
+                @else
+                    <div class="w-64 h-64 flex items-center justify-center bg-slate-100 rounded-xl">
+                        <span class="text-xs font-black text-slate-300 uppercase">No QRIS Available</span>
+                    </div>
                 @endif
             </div>
             <div class="mt-10 p-6 bg-slate-50 rounded-2xl">
@@ -218,8 +256,18 @@
     </div>
 
     <script>
-        function openQRModal() { document.getElementById('qrModal').classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
-        function closeQRModal() { document.getElementById('qrModal').classList.add('hidden'); document.body.style.overflow = 'auto'; }
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeQRModal(); });
+        function openQRModal() { 
+            document.getElementById('qrModal').classList.remove('hidden'); 
+            document.body.style.overflow = 'hidden'; 
+        }
+        
+        function closeQRModal() { 
+            document.getElementById('qrModal').classList.add('hidden'); 
+            document.body.style.overflow = 'auto'; 
+        }
+        
+        document.addEventListener('keydown', (e) => { 
+            if (e.key === 'Escape') closeQRModal(); 
+        });
     </script>
 </x-app-layout>

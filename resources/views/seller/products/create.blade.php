@@ -67,9 +67,10 @@
 
                 {{-- Foto Produk --}}
                 <div class="space-y-2 pt-4">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Galeri Foto Produk</label>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Foto Produk</label>
                     <div class="border-2 border-dashed border-slate-100 p-8 rounded-3xl bg-slate-50/30">
-                        <input type="file" name="images[]" multiple class="block w-full text-[10px] text-slate-500
+                        {{-- DIPERBAIKI: name="image" bukan "images[]" --}}
+                        <input type="file" name="image" class="block w-full text-[10px] text-slate-500
                             file:mr-6 file:py-2.5 file:px-6
                             file:rounded-full file:border-0
                             file:text-[10px] file:font-black
@@ -77,7 +78,8 @@
                             hover:file:bg-black file:cursor-pointer file:transition-all" required>
                         <div class="mt-4 flex items-center gap-2 text-[9px] text-slate-400 italic font-medium leading-relaxed">
                             <i class="fas fa-info-circle"></i>
-                            <span>Anda dapat memilih banyak gambar sekaligus. Format: JPG, PNG. Maks 2MB per file.</span>
+                            {{-- DIPERBAIKI: Update pesan maksimal ukuran --}}
+                            <span>Pilih satu gambar produk. Format: JPG, PNG, WEBP. Maks 5MB.</span>
                         </div>
                     </div>
                 </div>
